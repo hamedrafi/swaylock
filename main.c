@@ -92,6 +92,9 @@ static void daemonize(void) {
 }
 
 static void destroy_surface(struct swaylock_surface *surface) {
+	if (surface->render_timer) {
+		loop_remove_timer(surface->state->eventloop, surface->render_timer);
+	}
 	if (surface->frame != NULL) {
 		wl_callback_destroy(surface->frame);
 	}
@@ -110,6 +113,8 @@ static void destroy_surface(struct swaylock_surface *surface) {
 	}
 	destroy_buffer(&surface->indicator_buffers[0]);
 	destroy_buffer(&surface->indicator_buffers[1]);
+	destroy_buffer(&surface->background_buffers[0]);
+	destroy_buffer(&surface->background_buffers[1]);
 	wl_output_release(surface->output);
 	free(surface);
 }
@@ -145,9 +150,9 @@ static void create_surface(struct swaylock_surface *surface) {
 	ext_session_lock_surface_v1_add_listener(surface->ext_session_lock_surface_v1,
 		&ext_session_lock_surface_v1_listener, surface);
 
-	if (surface_is_opaque(surface) &&
+	if (state->args.matrix || (surface_is_opaque(surface) &&
 			surface->state->args.mode != BACKGROUND_MODE_CENTER &&
-			surface->state->args.mode != BACKGROUND_MODE_FIT) {
+			surface->state->args.mode != BACKGROUND_MODE_FIT)) {
 		struct wl_region *region =
 			wl_compositor_create_region(surface->state->compositor);
 		wl_region_add(region, 0, 0, INT32_MAX, INT32_MAX);
@@ -472,6 +477,8 @@ static int parse_options(int argc, char **argv, struct swaylock_state *state,
 		LO_LINE_CAPS_LOCK_COLOR,
 		LO_LINE_VER_COLOR,
 		LO_LINE_WRONG_COLOR,
+		LO_MATRIX,
+		LO_NO_MATRIX,
 		LO_RING_COLOR,
 		LO_RING_CLEAR_COLOR,
 		LO_RING_CAPS_LOCK_COLOR,
@@ -505,6 +512,8 @@ static int parse_options(int argc, char **argv, struct swaylock_state *state,
 		{"hide-keyboard-layout", no_argument, NULL, 'K'},
 		{"show-failed-attempts", no_argument, NULL, 'F'},
 		{"version", no_argument, NULL, 'v'},
+		{"matrix", no_argument, NULL, LO_MATRIX},
+		{"no-matrix", no_argument, NULL, LO_NO_MATRIX},
 		{"bs-hl-color", required_argument, NULL, LO_BS_HL_COLOR},
 		{"caps-lock-bs-hl-color", required_argument, NULL, LO_CAPS_LOCK_BS_HL_COLOR},
 		{"caps-lock-key-hl-color", required_argument, NULL, LO_CAPS_LOCK_KEY_HL_COLOR},
@@ -549,7 +558,7 @@ static int parse_options(int argc, char **argv, struct swaylock_state *state,
 		"  -C, --config <config_file>       "
 			"Path to the config file.\n"
 		"  -c, --color <color>              "
-			"Turn the screen into the given color instead of light gray.\n"
+			"Set the static background color (requires --no-matrix).\n"
 		"  -d, --debug                      "
 			"Enable debugging output.\n"
 		"  -e, --ignore-empty-password      "
@@ -563,7 +572,7 @@ static int parse_options(int argc, char **argv, struct swaylock_state *state,
 		"  -h, --help                       "
 			"Show help message and quit.\n"
 		"  -i, --image [[<output>]:]<path>  "
-			"Display the given image, optionally only on the given output.\n"
+			"Display a static image, optionally for one output (requires --no-matrix).\n"
 		"  -k, --show-keyboard-layout       "
 			"Display the current xkb layout while typing.\n"
 		"  -K, --hide-keyboard-layout       "
@@ -580,6 +589,10 @@ static int parse_options(int argc, char **argv, struct swaylock_state *state,
 			"Disable the unlock indicator.\n"
 		"  -v, --version                    "
 			"Show the version number and quit.\n"
+		"  --matrix                        "
+			"Show animated Matrix rain on black (default).\n"
+		"  --no-matrix                     "
+			"Use the configured static image or background color.\n"
 		"  --bs-hl-color <color>            "
 			"Sets the color of backspace highlight segments.\n"
 		"  --caps-lock-bs-hl-color <color>  "
@@ -764,6 +777,16 @@ static int parse_options(int argc, char **argv, struct swaylock_state *state,
 		case 'v':
 			fprintf(stdout, "swaylock version " SWAYLOCK_VERSION "\n");
 			exit(EXIT_SUCCESS);
+			break;
+		case LO_MATRIX:
+			if (state) {
+				state->args.matrix = true;
+			}
+			break;
+		case LO_NO_MATRIX:
+			if (state) {
+				state->args.matrix = false;
+			}
 			break;
 		case LO_BS_HL_COLOR:
 			if (state) {
@@ -1112,6 +1135,7 @@ int main(int argc, char **argv) {
 		.hide_keyboard_layout = false,
 		.show_failed_attempts = false,
 		.indicator_idle_visible = false,
+		.matrix = true,
 		.ready_fd = -1,
 	};
 	wl_list_init(&state.images);

@@ -63,6 +63,8 @@ _swaylock()
     --line-uses-ring
     --line-ver-color
     --line-wrong-color
+    --matrix
+    --no-matrix
     --no-unlock-indicator
     --ring-caps-lock-color
     --ring-clear-color

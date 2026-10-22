@@ -98,6 +98,7 @@ sources = [
 	'log.c',
 	'loop.c',
 	'main.c',
+	'matrix.c',
 	'password.c',
 	'password-buffer.c',
 	'pool-buffer.c',
@@ -125,6 +126,13 @@ executable('swaylock',
 	dependencies: dependencies,
 	install: true
 )
+
+matrix_test = executable('matrix-test',
+	['tests/matrix.c', 'matrix.c'],
+	include_directories: [swaylock_inc],
+	dependencies: [cairo, math],
+)
+test('matrix-background', matrix_test)
 
 if libpam.found()
 	install_data(

@@ -57,13 +57,21 @@ Locks your Wayland session.
 
 # APPEARANCE
 
+*--matrix*
+	Show animated Matrix-style green character rain on an opaque black
+	background. Enabled by default. Replaces the configured image and color.
+	The animation runs at up to 30 frames per second.
+
+*--no-matrix*
+	Disable the animation and use the configured static image or background color.
+
 *-u, --no-unlock-indicator*
 	Disable the unlock indicator.
 
 *-i, --image* [[<output>]:]<path>
-	Display the given image, optionally only on the given output. Use -c to set
-	a background color. If the path potentially contains a ':', prefix it with another
-	':' to prevent interpreting part of it as <output>.
+	Display the given image with --no-matrix, optionally only on the given
+	output. Use -c to set a background color. If the path potentially contains
+	a ':', prefix it with another ':' to prevent interpreting part of it as <output>.
 
 *-k, --show-keyboard-layout*
 	Display the current xkb layout while typing.
@@ -87,9 +95,9 @@ Locks your Wayland session.
 	Same as --scaling=tile.
 
 *-c, --color* <rrggbb[aa]>
-	Turn the screen into the given color instead of light gray. If -i is used,
-	this sets the background of the image to the given color. Defaults to light
-	gray (A3A3A3).
+	With --no-matrix, turn the screen into the given color instead of light
+	gray. If -i is used, this sets the background of the image to the given color.
+	Defaults to light gray (A3A3A3).
 
 *--bs-hl-color* <rrggbb[aa]>
 	Sets the color of backspace highlight segments.

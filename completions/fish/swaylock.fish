@@ -1,5 +1,8 @@
 # swaylock(1) completion
 
+complete -c swaylock -l matrix                      --description "Show animated Matrix rain on black (default)."
+complete -c swaylock -l no-matrix                   --description "Use a static background image or color."
+
 complete -c swaylock -l bs-hl-color                 --description "Sets the color of backspace highlight segments."
 complete -c swaylock -l caps-lock-bs-hl-color       --description "Sets the color of backspace highlight segments when Caps Lock is active."
 complete -c swaylock -l caps-lock-key-hl-color      --description "Sets the color of the key press highlight segments when Caps Lock is active."

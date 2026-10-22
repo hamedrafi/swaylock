@@ -6,6 +6,11 @@ protocol.
 
 See the man page, [swaylock(1)](swaylock.1.scd), for instructions on using swaylock.
 
+The lock screen shows animated Matrix-style green character rain on black by
+default. Run `swaylock --no-matrix` to use a static background instead, for example
+`swaylock --no-matrix --image wallpaper.png`. Both `matrix` and `no-matrix` can also
+be used in the configuration file.
+
 ## Release Signatures
 
 Releases are signed with [E88F5E48](https://keys.openpgp.org/search?q=34FF9526CFEF0E97A340E2E40FDE7BE0E88F5E48)
@@ -41,6 +46,20 @@ Run these commands:
     meson build
     ninja -C build
     sudo ninja -C build install
+
+On Ubuntu/Debian, configure or rebuild the Matrix version and run its tests with:
+
+    ./rebuild.sh
+
+The script downloads and installs missing build packages using APT and `sudo`
+when needed, including PAM support, image support, man-page tools, and a monospace
+font. Once the dependencies are available, use `./rebuild.sh --skip-deps` to
+rebuild offline or use dependencies installed manually on another distribution.
+
+The script reuses the settings in `build/` and any dependencies already unpacked
+in `build/deps/`. Additional arguments are passed to Meson setup, for example
+`./rebuild.sh -Dbuildtype=release`. Put `--skip-deps` before any Meson options.
+Run `./build/swaylock` to use the rebuilt binary.
 
 ##### Without PAM
 

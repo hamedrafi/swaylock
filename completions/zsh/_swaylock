@@ -4,6 +4,8 @@
 #
 
 _arguments -s \
+	'(--matrix)'--matrix'[Show animated Matrix rain on black (default)]' \
+	'(--no-matrix)'--no-matrix'[Use a static background image or color]' \
 	'(--bs-hl-color)'--bs-hl-color'[Sets the color of backspace highlight segments]:color:' \
 	'(--caps-lock-bs-hl-color)'--caps-lock-bs-hl-color'[Sets the color of backspace highlight segments when Caps Lock is active]:color:' \
 	'(--caps-lock-key-hl-color)'--caps-lock-key-hl-color'[Sets the color of the key press highlight segments when Caps Lock is active]:color:' \

@@ -1,13 +1,17 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <wayland-client.h>
 #include "cairo.h"
 #include "background-image.h"
 #include "swaylock.h"
 #include "log.h"
+#include "loop.h"
+#include "matrix.h"
 
 #define M_PI 3.14159265358979323846
+#define MATRIX_FRAME_DELAY_MS 34
 const float TYPE_INDICATOR_RANGE = M_PI / 3.0f;
 
 static void set_color_for_state(cairo_t *cairo, struct swaylock_state *state,
@@ -49,6 +53,19 @@ static const struct wl_callback_listener surface_frame_listener = {
 
 static bool render_frame(struct swaylock_surface *surface);
 
+static void render_timer(void *data) {
+	struct swaylock_surface *surface = data;
+	surface->render_timer = NULL;
+	render(surface);
+}
+
+static void schedule_render(struct swaylock_surface *surface, int delay_ms) {
+	if (!surface->render_timer) {
+		surface->render_timer = loop_add_timer(surface->state->eventloop,
+			delay_ms, render_timer, surface);
+	}
+}
+
 void render(struct swaylock_surface *surface) {
 	struct swaylock_state *state = surface->state;
 
@@ -58,42 +75,55 @@ void render(struct swaylock_surface *surface) {
 		return; // not yet configured
 	}
 
-	if (!surface->dirty || surface->frame) {
+	if ((!surface->dirty && !state->args.matrix) || surface->frame) {
 		// Nothing to do or frame already pending
 		return;
 	}
 
-	bool need_destroy = false;
-	struct pool_buffer buffer;
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	uint64_t now_ms = (uint64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+	// Frame callbacks pause animation on hidden outputs. A timer caps visible
+	// animation at 30 FPS without delaying password or output changes.
+	if (state->args.matrix && !surface->dirty &&
+			now_ms - surface->last_frame_ms < MATRIX_FRAME_DELAY_MS) {
+		schedule_render(surface,
+			MATRIX_FRAME_DELAY_MS - (now_ms - surface->last_frame_ms));
+		return;
+	}
 
-	if (buffer_width != surface->last_buffer_width ||
+	if (state->args.matrix || buffer_width != surface->last_buffer_width ||
 			buffer_height != surface->last_buffer_height) {
-		need_destroy = true;
-		if (!create_buffer(state->shm, &buffer, buffer_width, buffer_height,
-				WL_SHM_FORMAT_ARGB8888)) {
-			swaylock_log(LOG_ERROR,
-				"Failed to create new buffer for frame background.");
+		struct pool_buffer *buffer = get_next_buffer(state->shm,
+			surface->background_buffers, buffer_width, buffer_height);
+		if (!buffer) {
+			schedule_render(surface, MATRIX_FRAME_DELAY_MS);
 			return;
 		}
 
-		cairo_t *cairo = buffer.cairo;
+		cairo_t *cairo = buffer->cairo;
 		cairo_set_antialias(cairo, CAIRO_ANTIALIAS_BEST);
 
 		cairo_save(cairo);
-		cairo_set_operator(cairo, CAIRO_OPERATOR_SOURCE);
-		cairo_set_source_u32(cairo, state->args.colors.background);
-		cairo_paint(cairo);
-		if (surface->image && state->args.mode != BACKGROUND_MODE_SOLID_COLOR) {
-			cairo_set_operator(cairo, CAIRO_OPERATOR_OVER);
-			render_background_image(cairo, surface->image,
-				state->args.mode, buffer_width, buffer_height);
+		if (state->args.matrix) {
+			cairo_scale(cairo, surface->scale, surface->scale);
+			render_matrix_background(cairo, surface->width, surface->height,
+				now_ms / 1000.0, surface->output_global_name);
+		} else {
+			cairo_set_operator(cairo, CAIRO_OPERATOR_SOURCE);
+			cairo_set_source_u32(cairo, state->args.colors.background);
+			cairo_paint(cairo);
+			if (surface->image && state->args.mode != BACKGROUND_MODE_SOLID_COLOR) {
+				cairo_set_operator(cairo, CAIRO_OPERATOR_OVER);
+				render_background_image(cairo, surface->image,
+					state->args.mode, buffer_width, buffer_height);
+			}
 		}
 		cairo_restore(cairo);
 		cairo_identity_matrix(cairo);
 
-		wl_surface_attach(surface->surface, buffer.buffer, 0, 0);
+		wl_surface_attach(surface->surface, buffer->buffer, 0, 0);
 		wl_surface_damage_buffer(surface->surface, 0, 0, INT32_MAX, INT32_MAX);
-		need_destroy = true;
 
 		surface->last_buffer_width = buffer_width;
 		surface->last_buffer_height = buffer_height;
@@ -102,15 +132,13 @@ void render(struct swaylock_surface *surface) {
 	// It is possible for the surface scale to change even if the wl_buffer size hasn't
 	wl_surface_set_buffer_scale(surface->surface, surface->scale);
 
-	render_frame(surface);
-	surface->dirty = false;
+	if (surface->dirty && render_frame(surface)) {
+		surface->dirty = false;
+	}
+	surface->last_frame_ms = now_ms;
 	surface->frame = wl_surface_frame(surface->surface);
 	wl_callback_add_listener(surface->frame, &surface_frame_listener, surface);
 	wl_surface_commit(surface->surface);
-
-	if (need_destroy) {
-		destroy_buffer(&buffer);
-	}
 }
 
 static void configure_font_drawing(cairo_t *cairo, struct swaylock_state *state,

@@ -69,6 +69,7 @@ struct swaylock_args {
 	bool daemonize;
 	int ready_fd;
 	bool indicator_idle_visible;
+	bool matrix;
 };
 
 struct swaylock_password {
@@ -112,6 +113,7 @@ struct swaylock_surface {
 	struct wl_subsurface *subsurface;
 	struct ext_session_lock_surface_v1 *ext_session_lock_surface_v1;
 	struct pool_buffer indicator_buffers[2];
+	struct pool_buffer background_buffers[2];
 	bool created;
 	bool dirty;
 	uint32_t width, height;
@@ -120,6 +122,8 @@ struct swaylock_surface {
 	char *output_name;
 	struct wl_list link;
 	struct wl_callback *frame;
+	struct loop_timer *render_timer;
+	uint64_t last_frame_ms;
 	// Dimensions of last wl_buffer committed to background surface
 	int last_buffer_width, last_buffer_height;
 };
